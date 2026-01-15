@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { registerUser } from "./auth.service";
+import { loginUser, registerUser } from "./auth.service";
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -17,3 +17,20 @@ export const register = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const login = async (req: Request, res: Response) => {
+  try {
+    const loginResponse = await loginUser(req.body);
+
+    return res.status(201).json({
+      email: loginResponse.user.email,
+      token:loginResponse.token
+    });
+
+  } catch (error: any) {
+    return res.status(400).json({
+      message: error.message || "login failed",
+    });
+  }
+};
+
