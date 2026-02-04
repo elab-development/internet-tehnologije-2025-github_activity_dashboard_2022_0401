@@ -1,6 +1,12 @@
 import { Request, Response } from "express";
 import { loginUser, registerUser } from "./auth.service";
 
+export const logout = async (req: Request, res: Response) => {
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
+};
+
 export const register = async (req: Request, res: Response) => {
   try {
     const user = await registerUser(req.body);
