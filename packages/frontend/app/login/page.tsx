@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/Button";
 import { InputField } from "@/src/components/ui/InputField";
 import { Card } from "@/src/components/ui/Card";
-import { apiFetch, setToken } from "@/src/lib/api";
+import { apiFetch, setToken } from "../lib/api";
+
 
 type LoginResponse = {
   email: string;
