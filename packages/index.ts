@@ -1,7 +1,9 @@
 
 import "reflect-metadata";
 import express from "express";
-import * as dotenv from "dotenv";
+import dotenv from "dotenv";
+
+dotenv.config({ path: "packages/.env" });
 import { dataSource } from "./database/data-src";
 import authRoutes from "./modules/auth/auth.routes";
 

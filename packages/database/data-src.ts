@@ -16,10 +16,14 @@ export const dataSource = new DataSource({
   synchronize: false,
   migrations: ["packages/database/migrations/*.ts"],
   ssl: process.env.DB_SSL === "true",
-  extra: {
-    ssl: {
-      rejectUnauthorized: process.env.DB_REJECT_UNAUTHORIZED === "true",
-    },
-  },
+  extra:
+  process.env.DB_SSL === "true"
+    ? {
+        ssl: {
+          rejectUnauthorized: process.env.DB_REJECT_UNAUTHORIZED === "true",
+        },
+      }
+    : {},
+
 });
 
