@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/src/components/ui/Button";
 import { InputField } from "@/src/components/ui/InputField";
 import { Card } from "@/src/components/ui/Card";
 
-import { apiFetch } from "../lib/api";
+import { apiFetch, getToken } from "../lib/api";
 import Container from "../components/Container";
 
 export default function RegisterPage() {
@@ -18,11 +18,18 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  // ✅ UX state
+  // UX state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ Register handler
+  // ✅ Redirect if user already has token
+  useEffect(() => {
+    if (getToken()) {
+      router.push("/dashboard");
+    }
+  }, [router]);
+
+  // Register handler
   const handleRegister = async () => {
     setLoading(true);
     setError("");
@@ -72,12 +79,9 @@ export default function RegisterPage() {
               onChange={setPassword}
             />
 
-            {/* ✅ Error message */}
-            {error && (
-              <p className="text-red-600 text-sm">{error}</p>
-            )}
+            {/* Error message */}
+            {error && <p className="text-red-600 text-sm">{error}</p>}
 
-            {/* ✅ Button disabled while loading */}
             <Button onClick={handleRegister} disabled={loading}>
               {loading ? "Loading..." : "Create account"}
             </Button>

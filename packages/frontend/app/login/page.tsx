@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/src/components/ui/Button";
 import { InputField } from "@/src/components/ui/InputField";
 import { Card } from "@/src/components/ui/Card";
 
-import { apiFetch, setToken } from "../lib/api";
+import { apiFetch, setToken, getToken } from "../lib/api";
 import Container from "../components/Container";
 
 type LoginResponse = {
@@ -22,11 +22,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // ✅ UX state
+  // UX state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ Login handler
+  // ✅ Redirect if user already has token
+  useEffect(() => {
+    if (getToken()) {
+      router.push("/dashboard");
+    }
+  }, [router]);
+
+  // Login handler
   const handleLogin = async () => {
     setLoading(true);
     setError("");
@@ -71,12 +78,9 @@ export default function LoginPage() {
               onChange={setPassword}
             />
 
-            {/* ✅ Error message */}
-            {error && (
-              <p className="text-red-600 text-sm">{error}</p>
-            )}
+            {/* Error message */}
+            {error && <p className="text-red-600 text-sm">{error}</p>}
 
-            {/* ✅ Button disabled while loading */}
             <Button onClick={handleLogin} disabled={loading}>
               {loading ? "Loading..." : "Login"}
             </Button>
