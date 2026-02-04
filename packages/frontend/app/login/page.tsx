@@ -18,15 +18,18 @@ type LoginResponse = {
 export default function LoginPage() {
   const router = useRouter();
 
+  // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [error, setError] = useState<string | null>(null);
+  // ✅ UX state
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  // ✅ Login handler
   const handleLogin = async () => {
-    setError(null);
     setLoading(true);
+    setError("");
 
     try {
       const res = await apiFetch<LoginResponse>("/auth/login", {
@@ -36,8 +39,8 @@ export default function LoginPage() {
 
       setToken(res.token);
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (e: any) {
+      setError("Neuspešna prijava. Proveri email i lozinku.");
     } finally {
       setLoading(false);
     }
@@ -68,10 +71,14 @@ export default function LoginPage() {
               onChange={setPassword}
             />
 
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {/* ✅ Error message */}
+            {error && (
+              <p className="text-red-600 text-sm">{error}</p>
+            )}
 
+            {/* ✅ Button disabled while loading */}
             <Button onClick={handleLogin} disabled={loading}>
-              {loading ? "Logging in..." : "Login"}
+              {loading ? "Loading..." : "Login"}
             </Button>
           </div>
         </Card>

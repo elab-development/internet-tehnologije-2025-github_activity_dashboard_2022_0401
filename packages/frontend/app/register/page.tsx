@@ -13,16 +13,19 @@ import Container from "../components/Container";
 export default function RegisterPage() {
   const router = useRouter();
 
+  // Form state
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const [error, setError] = useState<string | null>(null);
+  // ✅ UX state
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  // ✅ Register handler
   const handleRegister = async () => {
-    setError(null);
     setLoading(true);
+    setError("");
 
     try {
       await apiFetch("/auth/register", {
@@ -31,8 +34,8 @@ export default function RegisterPage() {
       });
 
       router.push("/login");
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+    } catch (e: any) {
+      setError("Registracija nije uspela. Pokušaj ponovo.");
     } finally {
       setLoading(false);
     }
@@ -69,10 +72,14 @@ export default function RegisterPage() {
               onChange={setPassword}
             />
 
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {/* ✅ Error message */}
+            {error && (
+              <p className="text-red-600 text-sm">{error}</p>
+            )}
 
+            {/* ✅ Button disabled while loading */}
             <Button onClick={handleRegister} disabled={loading}>
-              {loading ? "Creating..." : "Create account"}
+              {loading ? "Loading..." : "Create account"}
             </Button>
           </div>
         </Card>
