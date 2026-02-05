@@ -3,7 +3,7 @@ import * as dotenv from "dotenv";
 import { DataSource } from "typeorm";
 import appEntities from "../entities";
 
-dotenv.config();
+dotenv.config({ path: "packages/.env" });
 
 export const dataSource = new DataSource({
   type: "postgres",

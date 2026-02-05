@@ -8,6 +8,7 @@ import { Card } from "@/src/components/ui/Card";
 
 import { clearToken, getToken } from "../lib/api";
 import Container from "../components/Container";
+import GithubActivity from "./GithubActivity";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function DashboardPage() {
       <Container>
         <Card>
           <h1 className="text-3xl font-semibold mb-2">Dashboard</h1>
-
+          <GithubActivity />
           <p className="text-zinc-600 mb-6">
             Zaštićena ruta – vidi se samo ako si ulogovan.
           </p>
