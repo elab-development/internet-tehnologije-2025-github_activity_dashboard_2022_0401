@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
-import { clearToken, getToken } from "../lib/api";
+import { usePathname, useRouter } from "next/navigation";
+import { clearToken, getToken, getRole } from "../lib/api";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
+
   const isLoggedIn = !!getToken();
+  const role = getRole();
+  const isAdmin = role === "admin";
 
   const linkClass = (href: string) =>
     `px-3 py-2 rounded ${
@@ -42,6 +45,13 @@ export default function Navbar() {
               <Link href="/dashboard" className={linkClass("/dashboard")}>
                 Dashboard
               </Link>
+
+              {isAdmin && (
+                <Link href="/admin" className={linkClass("/admin")}>
+                  Admin
+                </Link>
+              )}
+
               <button
                 className="px-3 py-2 rounded hover:bg-zinc-100"
                 onClick={() => {
@@ -51,6 +61,10 @@ export default function Navbar() {
               >
                 Logout
               </button>
+
+              <span className="ml-2 text-xs text-zinc-600">
+                role: <b>{role ?? "—"}</b>
+              </span>
             </>
           )}
         </div>
@@ -58,3 +72,4 @@ export default function Navbar() {
     </nav>
   );
 }
+

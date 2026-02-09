@@ -41,3 +41,26 @@ export async function apiFetch<T>(
 
   return data as T;
 }
+export function getRole(): string | null {
+  const token = getToken();
+  if (!token) return null;
+
+  try {
+    const payloadPart = token.split(".")[1];
+    if (!payloadPart) return null;
+
+    // base64url -> base64
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+
+    const payload = JSON.parse(json) as { role?: string };
+    return payload.role ?? null;
+  } catch {
+    return null;
+  }
+}
