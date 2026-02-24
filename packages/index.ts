@@ -2,21 +2,27 @@ import cors from "cors";
 import "reflect-metadata";
 import express from "express";
 import dotenv from "dotenv";
-import { dataSource } from "./database/data-src";
 
+dotenv.config({ path: "packages/.env" });
+dotenv.config();
+
+import { dataSource } from "./database/data-src";
 import authRoutes from "./modules/auth/auth.routes";
 import repositoriesRoutes from "./modules/repositories/repositories.routes";
 import githubRoutes from "./modules/github/github.routes";
 
-dotenv.config();
-
 const port = process.env.PORT || 5000;
 
-const app = express();
+export const app = express(); // 👈 BITNO
 
-app.use(cors({
-  origin: "http://localhost:3000",
-}));
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
@@ -31,12 +37,11 @@ app.get("/health", (req, res) => {
   });
 });
 
-// 👇 OVO JE KLJUČNO
-export default app;
 
-// 👇 Server se pokreće SAMO ako nije test okruženje
+
 if (process.env.NODE_ENV !== "test") {
-  dataSource.initialize()
+  dataSource
+    .initialize()
     .then(() => {
       console.log("Database connected successfully");
 

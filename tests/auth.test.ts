@@ -1,5 +1,31 @@
 import request from "supertest";
-import app from "../packages/index";
+import { app } from "../packages/index";
+
+beforeAll(() => {
+  process.env.GITHUB_TOKEN = "test-token";
+
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            repository: {
+              stargazerCount: 100,
+              forkCount: 50,
+              defaultBranchRef: {
+                target: {
+                  history: {
+                    totalCount: 25,
+                  },
+                },
+              },
+            },
+          },
+        }),
+    } as any)
+  );
+});
 
 describe("Basic API Test", () => {
   it("should return 404 for unknown route", async () => {

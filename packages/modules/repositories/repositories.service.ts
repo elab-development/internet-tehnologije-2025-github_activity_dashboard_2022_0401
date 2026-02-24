@@ -15,12 +15,10 @@ export class RepositoriesService {
   async followRepository(userId: number, repoData: any) {
     const [owner, name] = repoData.full_name.split("/");
 
-    // 1️⃣ Proveri da li repo postoji
     let repository = await this.repoRepository.findOne({
       where: { githubId: repoData.id },
     });
 
-    // 2️⃣ Ako ne postoji → kreiraj
     if (!repository) {
       repository = this.repoRepository.create({
         name,
@@ -31,14 +29,12 @@ export class RepositoriesService {
       await this.repoRepository.save(repository);
     }
 
-    // 3️⃣ Nađi usera
     const user = await this.userRepository.findOne({
       where: { id: Number(userId) },
     });
 
     if (!user) throw new Error("User not found");
 
-    // 4️⃣ Kreiraj follow relaciju
     const follow = this.followedRepoRepository.create({
       user,
       repository,
@@ -60,7 +56,7 @@ export class RepositoriesService {
   }
 
   /**
-   * Unfollow
+   * Unfollow repository
    */
   async unfollow(followId: number) {
     const follow = await this.followedRepoRepository.findOne({
@@ -74,5 +70,3 @@ export class RepositoriesService {
     return { message: "Unfollowed successfully" };
   }
 }
-
-

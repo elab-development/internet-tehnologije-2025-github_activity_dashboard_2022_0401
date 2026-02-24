@@ -18,9 +18,11 @@ export const register = async (req: Request, res: Response) => {
       role: user.role.name,
     });
   } catch (error: any) {
-    return res.status(400).json({
-      message: error.message || "Registration failed",
-    });
+   console.error("REGISTER ERROR:", error);
+
+  return res.status(400).json({
+    message: error.message || "Registration failed",
+  });
   }
 };
 

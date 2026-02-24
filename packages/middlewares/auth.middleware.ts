@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { jwtConfig } from "../config/jwt.config";
+
 
 interface JwtPayload {
   userId: number;
@@ -32,12 +34,13 @@ export const authMiddleware = (
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    ) as JwtPayload;
+  const decoded = jwt.verify(
+  token,
+  jwtConfig.secret
+) as JwtPayload;
 
-    req.user = decoded; // ⬅️ OVO JE KLJUČNO
+
+    req.user = decoded; 
     next();
   } catch (error) {
     return res.status(401).json({
