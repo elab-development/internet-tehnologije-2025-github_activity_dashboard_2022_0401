@@ -2,22 +2,28 @@ import cors from "cors";
 import "reflect-metadata";
 import express from "express";
 import dotenv from "dotenv";
-
-dotenv.config({ path: "packages/.env" });
 import { dataSource } from "./database/data-src";
+
 import authRoutes from "./modules/auth/auth.routes";
+import repositoriesRoutes from "./modules/repositories/repositories.routes";
+import githubRoutes from "./modules/github/github.routes";
 
 dotenv.config();
 
-const port = process.env.PORT || 3999;
+const port = process.env.PORT || 5000;
 
 const app = express();
+
 app.use(cors({
   origin: "http://localhost:3000",
 }));
 
 app.use(express.json());
+
+app.use("/github", githubRoutes);
 app.use("/auth", authRoutes);
+app.use("/repositories", repositoriesRoutes);
+
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
@@ -25,18 +31,20 @@ app.get("/health", (req, res) => {
   });
 });
 
-dataSource.initialize()
-  .then(() => {
-    console.log("Database connected successfully");
+// 👇 OVO JE KLJUČNO
+export default app;
 
-    app.listen(port, () => {
-      console.log(`Auth Server is running on port: ${port}`);
+// 👇 Server se pokreće SAMO ako nije test okruženje
+if (process.env.NODE_ENV !== "test") {
+  dataSource.initialize()
+    .then(() => {
+      console.log("Database connected successfully");
+
+      app.listen(port, () => {
+        console.log(`Server is running on port: ${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Database connection error:", error);
     });
-  })
-  .catch((error) => {
-    console.error("Database connection error:", error);
-  });
-
-
-
-
+}
