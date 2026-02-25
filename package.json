@@ -12,6 +12,7 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d packages/database/data-src.ts"
   },
   "dependencies": {
+    "@octokit/rest": "^22.0.1",
     "@types/dotenv": "^6.1.1",
     "@types/node": "^25.0.3",
     "bcrypt": "^6.0.0",

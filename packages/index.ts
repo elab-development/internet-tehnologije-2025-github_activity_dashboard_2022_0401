@@ -2,7 +2,7 @@ import cors from "cors";
 import "reflect-metadata";
 import express from "express";
 import dotenv from "dotenv";
-
+import githubRoutes from "./modules/github/github.routes";
 dotenv.config({ path: "packages/.env" });
 import { dataSource } from "./database/data-src";
 import authRoutes from "./modules/auth/auth.routes";
@@ -36,7 +36,7 @@ dataSource.initialize()
   .catch((error) => {
     console.error("Database connection error:", error);
   });
-
+app.use("/github", githubRoutes);
 
 
 

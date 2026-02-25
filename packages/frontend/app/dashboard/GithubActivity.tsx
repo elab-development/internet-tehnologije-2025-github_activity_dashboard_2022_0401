@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/src/components/ui/Card";
 import { Button } from "@/src/components/ui/Button";
 import { InputField } from "@/src/components/ui/InputField";
+import { apiFetch } from "@/app/lib/api";
 
 type GhEvent = {
   id: string;
@@ -48,11 +49,8 @@ export default function GithubActivity() {
   const [error, setError] = useState<string | null>(null);
 
   const [filter, setFilter] = useState("");
-
-  // ✅ PAGINATION STATE
   const [visibleCount, setVisibleCount] = useState(10);
 
-  // ✅ (opciono ali lepo) reset pagination kad se menja filter
   useEffect(() => {
     setVisibleCount(10);
   }, [filter]);
@@ -68,10 +66,8 @@ export default function GithubActivity() {
       typeCount[e.type] = (typeCount[e.type] || 0) + 1;
     }
 
-    const topRepo =
-      Object.entries(repoCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
-    const topType =
-      Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+    const topRepo = Object.entries(repoCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+    const topType = Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { total: events.length, topRepo, topType };
   }, [events]);
@@ -87,7 +83,6 @@ export default function GithubActivity() {
     });
   }, [events, filter]);
 
-  // ✅ PAGINATION APPLY
   const shown = filtered.slice(0, visibleCount);
   const canLoadMore = visibleCount < filtered.length;
 
@@ -96,23 +91,16 @@ export default function GithubActivity() {
 
     setLoading(true);
     setError(null);
-
-    // ✅ reset pagination on new fetch
     setVisibleCount(10);
 
     try {
-      const res = await fetch(
-        `https://api.github.com/users/${username}/events/public`
+      const data = await apiFetch<GhEvent[]>(
+        `/github/users/${username}/events/public?perPage=50&page=1`
       );
-      if (!res.ok) {
-        if (res.status === 404) throw new Error("GitHub user not found");
-        throw new Error(`GitHub error (${res.status})`);
-      }
-      const data = (await res.json()) as GhEvent[];
       setEvents(data);
-    } catch (e: any) {
-      setEvents([]);
-      setError(e.message || "Failed to load activity");
+    } catch (err: any) {
+      if (err?.status === 404) setError("GitHub user not found");
+      else setError(err?.message || "Failed to load GitHub activity");
     } finally {
       setLoading(false);
     }
@@ -179,12 +167,8 @@ export default function GithubActivity() {
             <Card key={e.id}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="font-semibold">
-                    {EVENT_LABELS[e.type] || e.type}
-                  </div>
-                  <div className="text-sm text-zinc-600">
-                    {e.repo?.name || "Unknown repo"}
-                  </div>
+                  <div className="font-semibold">{EVENT_LABELS[e.type] || e.type}</div>
+                  <div className="text-sm text-zinc-600">{e.repo?.name || "Unknown repo"}</div>
                 </div>
                 <div className="text-sm text-zinc-600">{timeAgo(e.created_at)}</div>
               </div>
@@ -193,7 +177,6 @@ export default function GithubActivity() {
         </div>
       )}
 
-      {/* ✅ LOAD MORE */}
       {events.length > 0 && canLoadMore && (
         <div className="flex justify-center">
           <Button variant="secondary" onClick={() => setVisibleCount((c) => c + 10)}>
@@ -203,9 +186,7 @@ export default function GithubActivity() {
       )}
 
       {!loading && !error && events.length === 0 && (
-        <p className="text-sm text-zinc-600">
-          Unesi GitHub username i klikni “Load activity”.
-        </p>
+        <p className="text-sm text-zinc-600">Unesi GitHub username i klikni “Load activity”.</p>
       )}
     </section>
   );
