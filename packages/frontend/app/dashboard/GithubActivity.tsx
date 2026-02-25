@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Chart } from "react-google-charts";
 import { Card } from "@/src/components/ui/Card";
 import { Button } from "@/src/components/ui/Button";
 import { InputField } from "@/src/components/ui/InputField";
@@ -12,6 +13,33 @@ type GhEvent = {
   created_at: string;
   repo?: { name: string };
   actor?: { login: string; avatar_url: string };
+};
+
+type RepoSummary = {
+  repo: {
+    fullName: string;
+    description: string | null;
+    htmlUrl: string;
+    stars: number;
+    forks: number;
+    openIssues: number;
+    watchers: number;
+    language: string | null;
+  };
+  kpis: {
+    commitsLastNDays: number;
+    issuesLastNDays: number;
+    prsLastNDays: number;
+    days: number;
+  };
+  contributors: Array<{
+    login: string;
+    avatarUrl: string;
+    contributions: number;
+    htmlUrl: string;
+  }>;
+  commitsPerDay: Array<{ date: string; count: number }>;
+  since: string;
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -43,6 +71,7 @@ function timeAgo(iso: string) {
 }
 
 export default function GithubActivity() {
+  // --- User public activity ---
   const [username, setUsername] = useState("");
   const [events, setEvents] = useState<GhEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,9 +80,7 @@ export default function GithubActivity() {
   const [filter, setFilter] = useState("");
   const [visibleCount, setVisibleCount] = useState(10);
 
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [filter]);
+  useEffect(() => setVisibleCount(10), [filter]);
 
   const stats = useMemo(() => {
     if (!events.length) return null;
@@ -86,7 +113,7 @@ export default function GithubActivity() {
   const shown = filtered.slice(0, visibleCount);
   const canLoadMore = visibleCount < filtered.length;
 
-  const load = async () => {
+  const loadUserActivity = async () => {
     if (!username.trim()) return;
 
     setLoading(true);
@@ -95,7 +122,7 @@ export default function GithubActivity() {
 
     try {
       const data = await apiFetch<GhEvent[]>(
-        `/github/users/${username}/events/public?perPage=50&page=1`
+        `/github/users/${username.trim()}/events/public?perPage=50&page=1`
       );
       setEvents(data);
     } catch (err: any) {
@@ -106,10 +133,165 @@ export default function GithubActivity() {
     }
   };
 
+  // --- Repo summary + chart ---
+  const [repoFull, setRepoFull] = useState(""); // "owner/repo"
+  const [days, setDays] = useState("7");
+  const [summary, setSummary] = useState<RepoSummary | null>(null);
+  const [sumLoading, setSumLoading] = useState(false);
+  const [sumError, setSumError] = useState<string | null>(null);
+
+  const loadRepoSummary = async () => {
+    const val = repoFull.trim();
+    if (!val.includes("/")) {
+      setSumError("Unesi repo kao owner/repo (npr. facebook/react)");
+      return;
+    }
+
+    const [owner, repo] = val.split("/");
+    const d = Number(days);
+    const safeDays = Number.isFinite(d) ? Math.min(Math.max(d, 1), 30) : 7;
+
+    setSumLoading(true);
+    setSumError(null);
+
+    try {
+      const data = await apiFetch<RepoSummary>(`/github/repos/${owner}/${repo}/summary?days=${safeDays}`);
+      setSummary(data);
+    } catch (err: any) {
+      setSumError(err?.message || "Failed to load repo summary");
+      setSummary(null);
+    } finally {
+      setSumLoading(false);
+    }
+  };
+
+  const chartData = useMemo(() => {
+    if (!summary) return null;
+
+    // Google Charts format: [["Date","Commits"], ["2026-02-21", 3], ...]
+    const rows = summary.commitsPerDay.map((p) => [p.date, p.count]);
+    return [["Date", "Commits"], ...rows];
+  }, [summary]);
+
   return (
     <section className="mt-6 flex flex-col gap-4">
+      {/* Repo summary (profi deo) */}
       <Card>
-        <h2 className="text-xl font-semibold mb-3">GitHub Activity</h2>
+        <h2 className="text-xl font-semibold mb-3">Repository Summary</h2>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <InputField
+            label="Repository (owner/repo)"
+            value={repoFull}
+            onChange={setRepoFull}
+            placeholder="npr. facebook/react"
+          />
+          <InputField
+            label="Days (1–30)"
+            value={days}
+            onChange={setDays}
+            placeholder="7"
+          />
+          <div className="flex items-end">
+            <Button onClick={loadRepoSummary} disabled={sumLoading} className="w-full">
+              {sumLoading ? "Loading..." : "Load repo summary"}
+            </Button>
+          </div>
+        </div>
+
+        {sumError && <p className="text-red-600 text-sm mt-3">{sumError}</p>}
+
+        {summary && (
+          <div className="mt-4 grid gap-3">
+            {/* KPI */}
+            <div className="grid gap-3 md:grid-cols-3">
+              <Card>
+                <div className="text-sm text-zinc-600">Commits (last {summary.kpis.days}d)</div>
+                <div className="text-2xl font-semibold">{summary.kpis.commitsLastNDays}</div>
+              </Card>
+              <Card>
+                <div className="text-sm text-zinc-600">PRs (last {summary.kpis.days}d)</div>
+                <div className="text-2xl font-semibold">{summary.kpis.prsLastNDays}</div>
+              </Card>
+              <Card>
+                <div className="text-sm text-zinc-600">Issues (last {summary.kpis.days}d)</div>
+                <div className="text-2xl font-semibold">{summary.kpis.issuesLastNDays}</div>
+              </Card>
+            </div>
+
+            {/* Repo meta */}
+            <div className="grid gap-3 md:grid-cols-3">
+              <Card>
+                <div className="text-sm text-zinc-600">Stars</div>
+                <div className="text-2xl font-semibold">{summary.repo.stars}</div>
+              </Card>
+              <Card>
+                <div className="text-sm text-zinc-600">Forks</div>
+                <div className="text-2xl font-semibold">{summary.repo.forks}</div>
+              </Card>
+              <Card>
+                <div className="text-sm text-zinc-600">Language</div>
+                <div className="text-2xl font-semibold">{summary.repo.language || "—"}</div>
+              </Card>
+            </div>
+
+            {/* Chart */}
+            {chartData && chartData.length > 1 && (
+              <Card>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div>
+                    <div className="font-semibold">Commits per day</div>
+                    <div className="text-sm text-zinc-600">
+                      Since {new Date(summary.since).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+
+                <Chart
+                  chartType="ColumnChart"
+                  width="100%"
+                  height="320px"
+                  data={chartData}
+                  options={{
+                    legend: { position: "none" },
+                    hAxis: { title: "Date" },
+                    vAxis: { title: "Commits" },
+                    chartArea: { width: "85%", height: "70%" },
+                  }}
+                />
+              </Card>
+            )}
+
+            {/* Contributors */}
+            <Card>
+              <div className="font-semibold mb-2">Top contributors</div>
+              {summary.contributors.length === 0 ? (
+                <div className="text-sm text-zinc-600">No contributors found.</div>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {summary.contributors.map((c) => (
+                    <div key={c.login} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={c.avatarUrl}
+                          alt={c.login}
+                          className="h-8 w-8 rounded-full"
+                        />
+                        <div className="font-semibold">{c.login}</div>
+                      </div>
+                      <div className="text-sm text-zinc-600">{c.contributions}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </Card>
+
+      {/* User activity (public feed) */}
+      <Card>
+        <h2 className="text-xl font-semibold mb-3">GitHub Activity (User)</h2>
 
         <div className="flex flex-col gap-3">
           <InputField
@@ -120,7 +302,7 @@ export default function GithubActivity() {
           />
 
           <div className="flex items-center gap-2">
-            <Button onClick={load} disabled={loading}>
+            <Button onClick={loadUserActivity} disabled={loading}>
               {loading ? "Loading..." : "Load activity"}
             </Button>
             <span className="text-sm text-zinc-600">public events feed</span>
