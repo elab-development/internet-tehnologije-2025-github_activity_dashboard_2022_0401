@@ -1,5 +1,12 @@
 import { Request, Response } from "express";
-import { getRepoSummary, listPublicEventsForUser, searchRepositories } from "./github.service";
+import {
+  getRepoLanguages,
+  getRepoSummary,
+  listOpenIssues,
+  listOpenPulls,
+  listPublicEventsForUser,
+  searchRepositories,
+} from "./github.service";
 
 function parseNumber(v: any, fallback: number) {
   const n = Number(v);
@@ -48,7 +55,6 @@ export async function searchRepos(req: Request, res: Response) {
     if (!q) return res.status(400).json({ message: "q is required" });
 
     const data = await searchRepositories({ q, perPage, page });
-    // vraćamo malo “lakši” payload (da front ne dobije tonu polja)
     return res.status(200).json({
       total: data.total_count,
       items: data.items.map((r: any) => ({
@@ -79,6 +85,64 @@ export async function repoSummary(req: Request, res: Response) {
 
     const data = await getRepoSummary({ owner, repo, days });
     return res.status(200).json(data);
+  } catch (err: any) {
+    return handleGithubError(err, res);
+  }
+}
+
+export async function repoLanguages(req: Request, res: Response) {
+  try {
+    const owner = req.params.owner;
+    const repo = req.params.repo;
+
+    const data = await getRepoLanguages({ owner, repo });
+    return res.status(200).json(data);
+  } catch (err: any) {
+    return handleGithubError(err, res);
+  }
+}
+
+export async function openPulls(req: Request, res: Response) {
+  try {
+    const owner = req.params.owner;
+    const repo = req.params.repo;
+    const perPage = req.query.perPage ? parseNumber(req.query.perPage, 5) : 5;
+
+    const data = await listOpenPulls({ owner, repo, perPage });
+
+    return res.status(200).json(
+      data.map((p: any) => ({
+        id: p.id,
+        number: p.number,
+        title: p.title,
+        htmlUrl: p.html_url,
+        user: { login: p.user?.login, avatarUrl: p.user?.avatar_url },
+        updatedAt: p.updated_at,
+      }))
+    );
+  } catch (err: any) {
+    return handleGithubError(err, res);
+  }
+}
+
+export async function openIssues(req: Request, res: Response) {
+  try {
+    const owner = req.params.owner;
+    const repo = req.params.repo;
+    const perPage = req.query.perPage ? parseNumber(req.query.perPage, 5) : 5;
+
+    const data = await listOpenIssues({ owner, repo, perPage });
+
+    return res.status(200).json(
+      data.map((i: any) => ({
+        id: i.id,
+        number: i.number,
+        title: i.title,
+        htmlUrl: i.html_url,
+        user: { login: i.user?.login, avatarUrl: i.user?.avatar_url },
+        updatedAt: i.updated_at,
+      }))
+    );
   } catch (err: any) {
     return handleGithubError(err, res);
   }

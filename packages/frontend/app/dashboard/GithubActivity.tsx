@@ -1,19 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Chart } from "react-google-charts";
 import { Card } from "@/src/components/ui/Card";
 import { Button } from "@/src/components/ui/Button";
 import { InputField } from "@/src/components/ui/InputField";
 import { apiFetch } from "@/app/lib/api";
-
-type GhEvent = {
-  id: string;
-  type: string;
-  created_at: string;
-  repo?: { name: string };
-  actor?: { login: string; avatar_url: string };
-};
 
 type RepoSummary = {
   repo: {
@@ -42,108 +34,31 @@ type RepoSummary = {
   since: string;
 };
 
-const EVENT_LABELS: Record<string, string> = {
-  PushEvent: "Pushed commits",
-  PullRequestEvent: "Pull request activity",
-  IssuesEvent: "Issues activity",
-  IssueCommentEvent: "Commented on issue",
-  CreateEvent: "Created something",
-  DeleteEvent: "Deleted something",
-  WatchEvent: "Starred repository",
-  ForkEvent: "Forked repository",
-  ReleaseEvent: "Release activity",
+type MiniItem = {
+  id: number;
+  number: number;
+  title: string;
+  htmlUrl: string;
+  user: { login: string; avatarUrl: string };
+  updatedAt: string;
 };
 
-function shortRepo(name?: string) {
-  if (!name) return "—";
-  return name.split("/")[1] || name;
-}
-
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
 export default function GithubActivity() {
-  // --- User public activity ---
-  const [username, setUsername] = useState("");
-  const [events, setEvents] = useState<GhEvent[]>([]);
+  const [repoFull, setRepoFull] = useState("");
+  const [days, setDays] = useState("7");
+
+  const [summary, setSummary] = useState<RepoSummary | null>(null);
+  const [languages, setLanguages] = useState<Record<string, number> | null>(null);
+  const [pulls, setPulls] = useState<MiniItem[]>([]);
+  const [issues, setIssues] = useState<MiniItem[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [filter, setFilter] = useState("");
-  const [visibleCount, setVisibleCount] = useState(10);
-
-  useEffect(() => setVisibleCount(10), [filter]);
-
-  const stats = useMemo(() => {
-    if (!events.length) return null;
-
-    const repoCount: Record<string, number> = {};
-    const typeCount: Record<string, number> = {};
-
-    for (const e of events) {
-      if (e.repo?.name) repoCount[e.repo.name] = (repoCount[e.repo.name] || 0) + 1;
-      typeCount[e.type] = (typeCount[e.type] || 0) + 1;
-    }
-
-    const topRepo = Object.entries(repoCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
-    const topType = Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
-
-    return { total: events.length, topRepo, topType };
-  }, [events]);
-
-  const filtered = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    if (!f) return events;
-
-    return events.filter((e) => {
-      const repo = e.repo?.name?.toLowerCase() || "";
-      const type = (EVENT_LABELS[e.type] || e.type).toLowerCase();
-      return repo.includes(f) || type.includes(f) || e.type.toLowerCase().includes(f);
-    });
-  }, [events, filter]);
-
-  const shown = filtered.slice(0, visibleCount);
-  const canLoadMore = visibleCount < filtered.length;
-
-  const loadUserActivity = async () => {
-    if (!username.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    setVisibleCount(10);
-
-    try {
-      const data = await apiFetch<GhEvent[]>(
-        `/github/users/${username.trim()}/events/public?perPage=50&page=1`
-      );
-      setEvents(data);
-    } catch (err: any) {
-      if (err?.status === 404) setError("GitHub user not found");
-      else setError(err?.message || "Failed to load GitHub activity");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Repo summary + chart ---
-  const [repoFull, setRepoFull] = useState(""); // "owner/repo"
-  const [days, setDays] = useState("7");
-  const [summary, setSummary] = useState<RepoSummary | null>(null);
-  const [sumLoading, setSumLoading] = useState(false);
-  const [sumError, setSumError] = useState<string | null>(null);
-
-  const loadRepoSummary = async () => {
+  const loadRepoDashboard = async () => {
     const val = repoFull.trim();
     if (!val.includes("/")) {
-      setSumError("Unesi repo kao owner/repo (npr. facebook/react)");
+      setError("Unesi repo kao owner/repo (npr. facebook/react)");
       return;
     }
 
@@ -151,116 +66,244 @@ export default function GithubActivity() {
     const d = Number(days);
     const safeDays = Number.isFinite(d) ? Math.min(Math.max(d, 1), 30) : 7;
 
-    setSumLoading(true);
-    setSumError(null);
+    setLoading(true);
+    setError(null);
 
     try {
       const data = await apiFetch<RepoSummary>(`/github/repos/${owner}/${repo}/summary?days=${safeDays}`);
       setSummary(data);
-    } catch (err: any) {
-      setSumError(err?.message || "Failed to load repo summary");
+
+      const [langs, openPRs, openIssuesList] = await Promise.all([
+        apiFetch<Record<string, number>>(`/github/repos/${owner}/${repo}/languages`),
+        apiFetch<MiniItem[]>(`/github/repos/${owner}/${repo}/pulls/open?perPage=5`),
+        apiFetch<MiniItem[]>(`/github/repos/${owner}/${repo}/issues/open?perPage=5`),
+      ]);
+
+      setLanguages(langs);
+      setPulls(openPRs);
+      setIssues(openIssuesList);
+    } catch (e: any) {
       setSummary(null);
+      setLanguages(null);
+      setPulls([]);
+      setIssues([]);
+      setError(e?.message || "Failed to load repo dashboard");
     } finally {
-      setSumLoading(false);
+      setLoading(false);
     }
   };
 
-  const chartData = useMemo(() => {
+  const commitsChartData = useMemo(() => {
     if (!summary) return null;
-
-    // Google Charts format: [["Date","Commits"], ["2026-02-21", 3], ...]
-    const rows = summary.commitsPerDay.map((p) => [p.date, p.count]);
-    return [["Date", "Commits"], ...rows];
+    return [["Date", "Commits"], ...summary.commitsPerDay.map((p) => [p.date, p.count])];
   }, [summary]);
 
-  return (
-    <section className="mt-6 flex flex-col gap-4">
-      {/* Repo summary (profi deo) */}
-      <Card>
-        <h2 className="text-xl font-semibold mb-3">Repository Summary</h2>
+  const langChartData = useMemo(() => {
+    if (!languages) return null;
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <InputField
-            label="Repository (owner/repo)"
-            value={repoFull}
-            onChange={setRepoFull}
-            placeholder="npr. facebook/react"
-          />
-          <InputField
-            label="Days (1–30)"
-            value={days}
-            onChange={setDays}
-            placeholder="7"
-          />
-          <div className="flex items-end">
-            <Button onClick={loadRepoSummary} disabled={sumLoading} className="w-full">
-              {sumLoading ? "Loading..." : "Load repo summary"}
-            </Button>
-          </div>
+    const entries = Object.entries(languages)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+
+    if (entries.length === 0) return null;
+
+    return [["Language", "Bytes"], ...entries.map(([lang, bytes]) => [lang, bytes])];
+  }, [languages]);
+
+  return (
+    <section className="mt-6">
+      <div className="rounded-3xl p-6 md:p-8 bg-gradient-to-br from-zinc-50 to-zinc-100 border border-zinc-200 shadow-sm">
+        <div className="flex flex-col gap-2 mb-6">
+          <h1 className="text-2xl md:text-3xl font-semibold">Repository Analytics</h1>
+          <p className="text-sm text-zinc-600">
+            Podaci idu preko našeg backenda (Octokit) + vizualizacija Google Charts.
+          </p>
         </div>
 
-        {sumError && <p className="text-red-600 text-sm mt-3">{sumError}</p>}
+        <Card>
+          <div className="grid gap-3 md:grid-cols-3">
+            <InputField
+              label="Repository (owner/repo)"
+              value={repoFull}
+              onChange={setRepoFull}
+              placeholder="npr. facebook/react"
+            />
+            <InputField label="Days (1–30)" value={days} onChange={setDays} placeholder="7" />
+            <div className="flex items-end">
+              <Button className="w-full" onClick={loadRepoDashboard} disabled={loading}>
+                {loading ? "Loading..." : "Load dashboard"}
+              </Button>
+            </div>
+          </div>
+
+          {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
+
+          {!error && !summary && (
+            <p className="text-sm text-zinc-600 mt-3">
+              Unesi repo i klikni “Load dashboard”.
+            </p>
+          )}
+        </Card>
 
         {summary && (
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4 grid gap-4">
+            {/* Repo header */}
+            <Card>
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="text-sm text-zinc-600">Repository</div>
+                  <div className="text-xl font-semibold">{summary.repo.fullName}</div>
+                  {summary.repo.description && (
+                    <div className="text-sm text-zinc-600 mt-1">{summary.repo.description}</div>
+                  )}
+                  <a
+                    className="text-sm text-blue-600 hover:underline mt-2 inline-block"
+                    href={summary.repo.htmlUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open on GitHub →
+                  </a>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-3 md:mt-0">
+                  <span className="px-3 py-1 rounded-full bg-zinc-100 text-sm border border-zinc-200">
+                    Language: {summary.repo.language || "—"}
+                  </span>
+                  <span className="px-3 py-1 rounded-full bg-zinc-100 text-sm border border-zinc-200">
+                    Stars: {summary.repo.stars}
+                  </span>
+                  <span className="px-3 py-1 rounded-full bg-zinc-100 text-sm border border-zinc-200">
+                    Forks: {summary.repo.forks}
+                  </span>
+                </div>
+              </div>
+            </Card>
+
             {/* KPI */}
             <div className="grid gap-3 md:grid-cols-3">
               <Card>
                 <div className="text-sm text-zinc-600">Commits (last {summary.kpis.days}d)</div>
-                <div className="text-2xl font-semibold">{summary.kpis.commitsLastNDays}</div>
+                <div className="text-3xl font-semibold">{summary.kpis.commitsLastNDays}</div>
               </Card>
               <Card>
                 <div className="text-sm text-zinc-600">PRs (last {summary.kpis.days}d)</div>
-                <div className="text-2xl font-semibold">{summary.kpis.prsLastNDays}</div>
+                <div className="text-3xl font-semibold">{summary.kpis.prsLastNDays}</div>
               </Card>
               <Card>
                 <div className="text-sm text-zinc-600">Issues (last {summary.kpis.days}d)</div>
-                <div className="text-2xl font-semibold">{summary.kpis.issuesLastNDays}</div>
+                <div className="text-3xl font-semibold">{summary.kpis.issuesLastNDays}</div>
               </Card>
             </div>
 
-            {/* Repo meta */}
-            <div className="grid gap-3 md:grid-cols-3">
+            {/* Commits chart */}
+            {commitsChartData && commitsChartData.length > 1 && (
               <Card>
-                <div className="text-sm text-zinc-600">Stars</div>
-                <div className="text-2xl font-semibold">{summary.repo.stars}</div>
-              </Card>
-              <Card>
-                <div className="text-sm text-zinc-600">Forks</div>
-                <div className="text-2xl font-semibold">{summary.repo.forks}</div>
-              </Card>
-              <Card>
-                <div className="text-sm text-zinc-600">Language</div>
-                <div className="text-2xl font-semibold">{summary.repo.language || "—"}</div>
-              </Card>
-            </div>
-
-            {/* Chart */}
-            {chartData && chartData.length > 1 && (
-              <Card>
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div>
-                    <div className="font-semibold">Commits per day</div>
-                    <div className="text-sm text-zinc-600">
-                      Since {new Date(summary.since).toLocaleDateString()}
-                    </div>
-                  </div>
+                <div className="font-semibold mb-1">Commits per day</div>
+                <div className="text-sm text-zinc-600 mb-2">
+                  Since {new Date(summary.since).toLocaleDateString()}
                 </div>
-
                 <Chart
                   chartType="ColumnChart"
                   width="100%"
                   height="320px"
-                  data={chartData}
+                  data={commitsChartData}
                   options={{
                     legend: { position: "none" },
                     hAxis: { title: "Date" },
                     vAxis: { title: "Commits" },
                     chartArea: { width: "85%", height: "70%" },
+                    backgroundColor: "transparent",
                   }}
                 />
               </Card>
             )}
+
+            {/* Languages pie */}
+            {langChartData && (
+              <Card>
+                <div className="font-semibold mb-2">Language breakdown (top 6)</div>
+                <Chart
+                  chartType="PieChart"
+                  width="100%"
+                  height="320px"
+                  data={langChartData}
+                  options={{
+                    pieHole: 0.45,
+                    chartArea: { width: "90%", height: "80%" },
+                    backgroundColor: "transparent",
+                    legend: { position: "right" },
+                  }}
+                />
+              </Card>
+            )}
+
+            {/* PRs + Issues */}
+            <div className="grid gap-3 md:grid-cols-2">
+              <Card>
+                <div className="font-semibold mb-2">Open Pull Requests (top 5)</div>
+                {pulls.length === 0 ? (
+                  <div className="text-sm text-zinc-600">No open PRs found.</div>
+                ) : (
+                  <div className="grid gap-2">
+                    {pulls.map((p) => (
+                      <a
+                        key={p.id}
+                        href={p.htmlUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl border border-zinc-200 bg-white/70 px-3 py-2 hover:bg-white transition"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-semibold line-clamp-1">
+                            #{p.number} {p.title}
+                          </div>
+                          <div className="text-xs text-zinc-600">
+                            {new Date(p.updatedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-sm text-zinc-600">
+                          <img src={p.user.avatarUrl} alt={p.user.login} className="h-5 w-5 rounded-full" />
+                          <span>{p.user.login}</span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <div className="font-semibold mb-2">Open Issues (top 5)</div>
+                {issues.length === 0 ? (
+                  <div className="text-sm text-zinc-600">No open issues found.</div>
+                ) : (
+                  <div className="grid gap-2">
+                    {issues.map((i) => (
+                      <a
+                        key={i.id}
+                        href={i.htmlUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl border border-zinc-200 bg-white/70 px-3 py-2 hover:bg-white transition"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-semibold line-clamp-1">
+                            #{i.number} {i.title}
+                          </div>
+                          <div className="text-xs text-zinc-600">
+                            {new Date(i.updatedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-sm text-zinc-600">
+                          <img src={i.user.avatarUrl} alt={i.user.login} className="h-5 w-5 rounded-full" />
+                          <span>{i.user.login}</span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
 
             {/* Contributors */}
             <Card>
@@ -270,106 +313,26 @@ export default function GithubActivity() {
               ) : (
                 <div className="grid gap-2 md:grid-cols-2">
                   {summary.contributors.map((c) => (
-                    <div key={c.login} className="flex items-center justify-between">
+                    <a
+                      key={c.login}
+                      href={c.htmlUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white/70 px-3 py-2 hover:bg-white transition"
+                    >
                       <div className="flex items-center gap-2">
-                        <img
-                          src={c.avatarUrl}
-                          alt={c.login}
-                          className="h-8 w-8 rounded-full"
-                        />
+                        <img src={c.avatarUrl} alt={c.login} className="h-8 w-8 rounded-full" />
                         <div className="font-semibold">{c.login}</div>
                       </div>
                       <div className="text-sm text-zinc-600">{c.contributions}</div>
-                    </div>
+                    </a>
                   ))}
                 </div>
               )}
             </Card>
           </div>
         )}
-      </Card>
-
-      {/* User activity (public feed) */}
-      <Card>
-        <h2 className="text-xl font-semibold mb-3">GitHub Activity (User)</h2>
-
-        <div className="flex flex-col gap-3">
-          <InputField
-            label="GitHub username"
-            value={username}
-            onChange={setUsername}
-            placeholder="npr. vercel"
-          />
-
-          <div className="flex items-center gap-2">
-            <Button onClick={loadUserActivity} disabled={loading}>
-              {loading ? "Loading..." : "Load activity"}
-            </Button>
-            <span className="text-sm text-zinc-600">public events feed</span>
-          </div>
-
-          {events.length > 0 && (
-            <InputField
-              label="Filter (repo / type)"
-              value={filter}
-              onChange={setFilter}
-              placeholder="npr. pushed, pull request, nodejs..."
-            />
-          )}
-
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-        </div>
-      </Card>
-
-      {stats && (
-        <div className="grid gap-3 md:grid-cols-3">
-          <Card>
-            <div className="text-sm text-zinc-600">Total events</div>
-            <div className="text-2xl font-semibold">{stats.total}</div>
-          </Card>
-
-          <Card>
-            <div className="text-sm text-zinc-600">Top repo</div>
-            <div className="text-lg font-semibold">{shortRepo(stats.topRepo)}</div>
-            <div className="text-sm text-zinc-500">{stats.topRepo}</div>
-          </Card>
-
-          <Card>
-            <div className="text-sm text-zinc-600">Most activity</div>
-            <div className="text-lg font-semibold">
-              {EVENT_LABELS[stats.topType] || stats.topType}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {shown.length > 0 && (
-        <div className="grid gap-3">
-          {shown.map((e) => (
-            <Card key={e.id}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="font-semibold">{EVENT_LABELS[e.type] || e.type}</div>
-                  <div className="text-sm text-zinc-600">{e.repo?.name || "Unknown repo"}</div>
-                </div>
-                <div className="text-sm text-zinc-600">{timeAgo(e.created_at)}</div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {events.length > 0 && canLoadMore && (
-        <div className="flex justify-center">
-          <Button variant="secondary" onClick={() => setVisibleCount((c) => c + 10)}>
-            Load more
-          </Button>
-        </div>
-      )}
-
-      {!loading && !error && events.length === 0 && (
-        <p className="text-sm text-zinc-600">Unesi GitHub username i klikni “Load activity”.</p>
-      )}
+      </div>
     </section>
   );
 }

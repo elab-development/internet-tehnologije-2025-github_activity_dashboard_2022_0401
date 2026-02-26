@@ -5,7 +5,7 @@ function getOctokit() {
   return new Octokit(token ? { auth: token } : {});
 }
 
-/** --- Simple in-memory cache (profi detalj) --- */
+/** --- Simple in-memory cache --- */
 type CacheEntry<T> = { expiresAt: number; data: T };
 const cache = new Map<string, CacheEntry<any>>();
 
@@ -47,7 +47,6 @@ export async function listPublicEventsForUser(params: {
     page,
   });
 
-  // cache 30s (da ne udarate rate-limit)
   setCache(cacheKey, res.data, 30_000);
   return res.data;
 }
@@ -73,11 +72,7 @@ export async function searchRepositories(params: { q: string; perPage?: number; 
   return res.data;
 }
 
-export async function getRepoSummary(params: {
-  owner: string;
-  repo: string;
-  days?: number; // npr 7 ili 30
-}) {
+export async function getRepoSummary(params: { owner: string; repo: string; days?: number }) {
   const octokit = getOctokit();
   const days = Math.min(Math.max(params.days ?? 7, 1), 30);
 
@@ -87,20 +82,17 @@ export async function getRepoSummary(params: {
 
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-  // 1) Repo info
   const repoRes = await octokit.rest.repos.get({
     owner: params.owner,
     repo: params.repo,
   });
 
-  // 2) Contributors (top 5)
   const contribRes = await octokit.rest.repos.listContributors({
     owner: params.owner,
     repo: params.repo,
     per_page: 5,
   });
 
-  // 3) Commits since X days (chart + KPI)
   const commitsRes = await octokit.rest.repos.listCommits({
     owner: params.owner,
     repo: params.repo,
@@ -120,7 +112,7 @@ export async function getRepoSummary(params: {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, count]) => ({ date, count }));
 
-  // 4) Issues since X days (bez PR)
+  // Issues endpoint vraća i PR kao pull_request field
   const issuesRes = await octokit.rest.issues.listForRepo({
     owner: params.owner,
     repo: params.repo,
@@ -130,7 +122,7 @@ export async function getRepoSummary(params: {
   });
 
   const issuesCount = issuesRes.data.filter((i) => !i.pull_request).length;
-  const prsCount = issuesRes.data.filter((i) => !!i.pull_request).length; // GitHub issues endpoint vraća i PR u istom feed-u
+  const prsCount = issuesRes.data.filter((i) => !!i.pull_request).length;
 
   const summary = {
     repo: {
@@ -159,7 +151,66 @@ export async function getRepoSummary(params: {
     since,
   };
 
-  // cache 60s
   setCache(cacheKey, summary, 60_000);
   return summary;
+}
+
+export async function getRepoLanguages(params: { owner: string; repo: string }) {
+  const octokit = getOctokit();
+
+  const cacheKey = `repo_lang:${params.owner}/${params.repo}`;
+  const cached = getCache<Record<string, number>>(cacheKey);
+  if (cached) return cached;
+
+  const res = await octokit.rest.repos.listLanguages({
+    owner: params.owner,
+    repo: params.repo,
+  });
+
+  setCache(cacheKey, res.data, 5 * 60_000);
+  return res.data;
+}
+
+export async function listOpenPulls(params: { owner: string; repo: string; perPage?: number }) {
+  const octokit = getOctokit();
+  const per_page = Math.min(Math.max(params.perPage ?? 5, 1), 20);
+
+  const cacheKey = `repo_pulls_open:${params.owner}/${params.repo}:${per_page}`;
+  const cached = getCache<any[]>(cacheKey);
+  if (cached) return cached;
+
+  const res = await octokit.rest.pulls.list({
+    owner: params.owner,
+    repo: params.repo,
+    state: "open",
+    per_page,
+    sort: "updated",
+    direction: "desc",
+  });
+
+  setCache(cacheKey, res.data, 30_000);
+  return res.data;
+}
+
+export async function listOpenIssues(params: { owner: string; repo: string; perPage?: number }) {
+  const octokit = getOctokit();
+  const per_page = Math.min(Math.max(params.perPage ?? 5, 1), 20);
+
+  const cacheKey = `repo_issues_open:${params.owner}/${params.repo}:${per_page}`;
+  const cached = getCache<any[]>(cacheKey);
+  if (cached) return cached;
+
+  const res = await octokit.rest.issues.listForRepo({
+    owner: params.owner,
+    repo: params.repo,
+    state: "open",
+    per_page,
+    sort: "updated",
+    direction: "desc",
+  });
+
+  const issuesOnly = res.data.filter((i: any) => !i.pull_request);
+
+  setCache(cacheKey, issuesOnly, 30_000);
+  return issuesOnly;
 }
