@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chart } from "react-google-charts";
 import { Card } from "@/src/components/ui/Card";
 import { Button } from "@/src/components/ui/Button";
@@ -43,8 +43,14 @@ type MiniItem = {
   updatedAt: string;
 };
 
-export default function GithubActivity() {
-  const [repoFull, setRepoFull] = useState("");
+export default function GithubActivity({
+  initialRepo,
+  onRepoChange,
+}: {
+  initialRepo?: string;
+  onRepoChange?: (repoFull: string) => void;
+}) {
+  const [repoFull, setRepoFull] = useState(initialRepo ?? "");
   const [days, setDays] = useState("7");
 
   const [summary, setSummary] = useState<RepoSummary | null>(null);
@@ -54,6 +60,11 @@ export default function GithubActivity() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ako Dashboard promeni selected repo, syncuj input
+  useEffect(() => {
+    if (typeof initialRepo === "string") setRepoFull(initialRepo);
+  }, [initialRepo]);
 
   const loadRepoDashboard = async () => {
     const val = repoFull.trim();
@@ -70,7 +81,9 @@ export default function GithubActivity() {
     setError(null);
 
     try {
-      const data = await apiFetch<RepoSummary>(`/github/repos/${owner}/${repo}/summary?days=${safeDays}`);
+      const data = await apiFetch<RepoSummary>(
+        `/github/repos/${owner}/${repo}/summary?days=${safeDays}`
+      );
       setSummary(data);
 
       const [langs, openPRs, openIssuesList] = await Promise.all([
@@ -125,7 +138,10 @@ export default function GithubActivity() {
             <InputField
               label="Repository (owner/repo)"
               value={repoFull}
-              onChange={setRepoFull}
+              onChange={(v) => {
+                setRepoFull(v);
+                onRepoChange?.(v);
+              }}
               placeholder="npr. facebook/react"
             />
             <InputField label="Days (1–30)" value={days} onChange={setDays} placeholder="7" />
@@ -147,7 +163,6 @@ export default function GithubActivity() {
 
         {summary && (
           <div className="mt-4 grid gap-4">
-            {/* Repo header */}
             <Card>
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
@@ -180,7 +195,6 @@ export default function GithubActivity() {
               </div>
             </Card>
 
-            {/* KPI */}
             <div className="grid gap-3 md:grid-cols-3">
               <Card>
                 <div className="text-sm text-zinc-600">Commits (last {summary.kpis.days}d)</div>
@@ -196,7 +210,6 @@ export default function GithubActivity() {
               </Card>
             </div>
 
-            {/* Commits chart */}
             {commitsChartData && commitsChartData.length > 1 && (
               <Card>
                 <div className="font-semibold mb-1">Commits per day</div>
@@ -219,7 +232,6 @@ export default function GithubActivity() {
               </Card>
             )}
 
-            {/* Languages pie */}
             {langChartData && (
               <Card>
                 <div className="font-semibold mb-2">Language breakdown (top 6)</div>
@@ -238,7 +250,6 @@ export default function GithubActivity() {
               </Card>
             )}
 
-            {/* PRs + Issues */}
             <div className="grid gap-3 md:grid-cols-2">
               <Card>
                 <div className="font-semibold mb-2">Open Pull Requests (top 5)</div>
@@ -261,10 +272,6 @@ export default function GithubActivity() {
                           <div className="text-xs text-zinc-600">
                             {new Date(p.updatedAt).toLocaleDateString()}
                           </div>
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 text-sm text-zinc-600">
-                          <img src={p.user.avatarUrl} alt={p.user.login} className="h-5 w-5 rounded-full" />
-                          <span>{p.user.login}</span>
                         </div>
                       </a>
                     ))}
@@ -294,10 +301,6 @@ export default function GithubActivity() {
                             {new Date(i.updatedAt).toLocaleDateString()}
                           </div>
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-sm text-zinc-600">
-                          <img src={i.user.avatarUrl} alt={i.user.login} className="h-5 w-5 rounded-full" />
-                          <span>{i.user.login}</span>
-                        </div>
                       </a>
                     ))}
                   </div>
@@ -305,7 +308,6 @@ export default function GithubActivity() {
               </Card>
             </div>
 
-            {/* Contributors */}
             <Card>
               <div className="font-semibold mb-2">Top contributors</div>
               {summary.contributors.length === 0 ? (
