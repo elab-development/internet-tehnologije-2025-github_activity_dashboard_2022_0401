@@ -1,5 +1,38 @@
 import { Request, Response } from "express";
 
+/**
+ * @swagger
+ * tags:
+ *   name: GitHub
+ *   description: GitHub repository statistics
+ */
+
+/**
+ * @swagger
+ * /github/{owner}/{repo}/stats:
+ *   get:
+ *     summary: Get repository statistics
+ *     tags: [GitHub]
+ *     parameters:
+ *       - in: path
+ *         name: owner
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Repository owner
+ *       - in: path
+ *         name: repo
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Repository name
+ *     responses:
+ *       200:
+ *         description: Repository statistics returned
+ *       404:
+ *         description: Repository not found
+ */
+
 export const getRepoStats = async (req: Request, res: Response) => {
   const { owner, repo } = req.params;
 

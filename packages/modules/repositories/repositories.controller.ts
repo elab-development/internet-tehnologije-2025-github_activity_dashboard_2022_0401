@@ -6,6 +6,23 @@ const service = new RepositoriesService();
 /**
  * Follow repository
  */
+
+/**
+ * @swagger
+ * /repositories:
+ *   get:
+ *     summary: Get user repositories
+ *     tags: [Repositories]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of repositories
+ *       401:
+ *         description: Unauthorized - JWT missing or invalid
+ *       403:
+ *         description: Forbidden - insufficient permissions
+ */
 export const followRepository = async (req: any, res: Response) => {
   try {
     const userId = Number(req.user.userId);
